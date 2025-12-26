@@ -39,7 +39,7 @@ try:
         time.sleep(1)
 
     # --- 2. 存入 Excel ---
-    file_path = "全币种监控表.xlsx"
+    file_path = "data.xlsx"
 
     # 如果文件存在，就读取旧数据
     if os.path.exists(file_path):

@@ -6,7 +6,7 @@ import altair as alt
 st.set_page_config(page_title="Crypto Pro 看板", layout="wide")
 st.title("🚀 全币种量化监控室")
 
-file_path = "全币种监控表.xlsx"
+file_path = "data.xlsx"
 
 if st.button("🔄 刷新数据"):
     st.rerun()
