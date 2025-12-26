@@ -1,44 +1,43 @@
 name: 自动抓取币价
 
-# 触发条件
 on:
-  # 1. 允许手动点击按钮触发 (方便测试)
   workflow_dispatch:
-  # 2. 定时触发 (每小时运行一次)
-  # cron 语法: "分 时 * * *" (UTC时间)
-  # "0 * * * *" 代表每小时的第0分钟
   schedule:
     - cron: '0 * * * *'
 
 jobs:
   build:
-    runs-on: ubuntu-latest # 使用最新的 Linux 服务器
+    runs-on: ubuntu-latest
+    
+    # 这一步是为了防止权限问题
+    permissions:
+      contents: write
 
     steps:
-    # 1. 把代码拉下来
     - name: Checkout code
       uses: actions/checkout@v3
 
-    # 2. 安装 Python
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
 
-    # 3. 安装依赖库 (pandas等)
     - name: Install dependencies
       run: |
         pip install requests pandas openpyxl
 
-    # 4. 运行爬虫脚本
     - name: Run scraper
       run: python cloud_bot.py
 
-    # 5. 把更新后的 Excel 提交回仓库
     - name: Commit and push changes
       run: |
         git config --global user.name "GitHub Action Bot"
         git config --global user.email "actions@github.com"
         git add 全币种监控表.xlsx
+        # --- ⬇️ 关键修改在这里 ⬇️ ---
+        # 1. 先提交到本地
         git commit -m "Auto-update crypto data" || echo "No changes to commit"
+        # 2. 先把服务器上最新的拉下来合并 (rebase模式更干净)
+        git pull --rebase origin main
+        # 3. 再推上去
         git push
