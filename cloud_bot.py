@@ -52,4 +52,6 @@ try:
     print("✅ 数据已更新并保存！")
 
 except Exception as e:
-    print(f"❌ 出错了: {e}")
+    print(f"❌ 严重错误: {e}")
+    # 这一句是关键：强制让程序报错退出，这样 GitHub 就会显示红色❌
+    exit(1)
