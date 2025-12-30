@@ -42,8 +42,10 @@ try:
         
         time.sleep(1)
 
+   # ... 前面的代码不变 ...
+
     # --- 2. 存入 Excel ---
-    if len(new_rows) > 0: # 只有抓到了数据才存
+    if len(new_rows) > 0:
         file_path = "data.xlsx"
 
         if os.path.exists(file_path):
@@ -54,9 +56,13 @@ try:
             df_final = pd.DataFrame(new_rows)
         
         df_final.to_excel(file_path, index=False)
-        print("✅ 数据已更新并保存！")
+        print(f"✅ 成功更新了 {len(new_rows)} 条数据！")
+        
     else:
-        print("⚠️ 本轮没有抓到任何数据，跳过保存。")
+        # ⚠️ 关键修改：如果没有抓到数据，也要报错退出！
+        # 这样 GitHub Actions 就会变红，我们就知道它没干活了。
+        print("⚠️ 警告：本轮没有抓到任何数据！可能是网络问题。")
+        exit(1) # 强制报错
 
 except Exception as e:
     print(f"❌ 严重错误: {e}")
