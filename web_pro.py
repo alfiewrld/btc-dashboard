@@ -6,18 +6,15 @@ from openai import OpenAI
 
 # 1. 页面配置
 st.set_page_config(page_title="AI 云端投研室", page_icon="🧠", layout="wide")
-st.title("🧠 AI 云端量化投研室")
+st.title("🧠 AI 云端量化投研室 (含实盘账户)")
 
-# --- 🔐 安全连接：获取所有密钥 ---
+# --- 🔐 安全连接 ---
 try:
-    # 数据库密钥
     SUPA_URL = st.secrets["supabase"]["url"]
     SUPA_KEY = st.secrets["supabase"]["key"]
-    # AI 密钥
     AI_KEY = st.secrets["deepseek"]["api_key"]
     AI_BASE = st.secrets["deepseek"]["base_url"]
     
-    # 初始化客户端
     supabase: Client = create_client(SUPA_URL, SUPA_KEY)
     
 except Exception as e:
@@ -25,14 +22,56 @@ except Exception as e:
     st.stop()
 
 # --- 🔄 刷新按钮 ---
-if st.button("🔄 刷新全网数据"):
+if st.sidebar.button("🔄 刷新全网数据"):
     st.rerun()
+
+# ================= 💼 新增：账户资产显示模块 =================
+def show_my_assets():
+    try:
+        # 1. 从 Supabase 读取 assets 表
+        resp = supabase.table("assets").select("*").execute()
+        
+        # 把数据转换成字典，方便取值: {'USDT': 100000, 'BTC': 0.5}
+        my_assets = {item['type']: item['amount'] for item in resp.data}
+        
+        usdt_balance = my_assets.get("USDT", 0)
+        btc_balance = my_assets.get("BTC", 0)
+
+        # 2. 获取 BTC 当前价格 (为了计算总资产值多少钱)
+        # 我们专门查一下最新的 BTC_USDT 价格
+        price_resp = supabase.table("prices").select("price").eq("symbol", "BTC_USDT").order("time", desc=True).limit(1).execute()
+        
+        if price_resp.data:
+            current_btc_price = price_resp.data[0]['price']
+        else:
+            current_btc_price = 0 # 如果数据库空的，价格算0
+
+        # 3. 计算总市值 (现金 + 币值)
+        total_value = usdt_balance + (btc_balance * current_btc_price)
+
+        # 4. 在侧边栏显示
+        st.sidebar.divider()
+        st.sidebar.header("💼 模拟实盘账户")
+        st.sidebar.write(f"💵 **可用现金**: ${usdt_balance:,.2f}")
+        st.sidebar.write(f"🪙 **持有 BTC**: {btc_balance:.6f} 个")
+        
+        # 显示总资产，并根据是否赚钱显示颜色
+        delta_color = "normal"
+        if total_value > 100000: delta_color = "normal" # 赚钱了
+        st.sidebar.metric("💰 账户总净值", f"${total_value:,.2f}", delta=f"{total_value-100000:+.2f}")
+        st.sidebar.divider()
+
+    except Exception as e:
+        st.sidebar.error(f"无法读取账户信息: {e}")
+
+# 运行这个显示函数
+show_my_assets()
+# ==========================================================
 
 # --- 📥 核心：从云端读数据 ---
 @st.cache_data(ttl=60)
 def load_data():
-    # 读最近 100 条数据
-    response = supabase.table("prices").select("*").order("time", desc=True).limit(100).execute()
+    response = supabase.table("prices").select("*").order("time", desc=True).limit(200).execute()
     return pd.DataFrame(response.data)
 
 # === 主程序 ===
@@ -52,7 +91,14 @@ try:
         if not df_coin.empty:
             # --- 📊 展示行情 ---
             latest_price = df_coin["price"].iloc[-1]
-            st.metric(f"{selected_coin} 实时报价", f"${latest_price:,.4f}")
+            
+            # 计算涨跌幅
+            if len(df_coin) > 1:
+                prev = df_coin["price"].iloc[-2]
+                change = (latest_price - prev) / prev * 100
+                st.metric(f"{selected_coin} 实时报价", f"${latest_price:,.4f}", f"{change:.2f}%")
+            else:
+                st.metric(f"{selected_coin} 实时报价", f"${latest_price:,.4f}")
 
             # --- 📈 画图 ---
             st.subheader("📈 价格走势")
@@ -70,28 +116,20 @@ try:
             if st.button("✨ 生成研报"):
                 with st.spinner("AI 正在读取云端数据库并进行分析..."):
                     try:
-                        # 1. 准备数据文本
                         data_str = df_coin.tail(15).to_string(index=False)
-                        
-                        # 2. 呼叫 AI
                         client = OpenAI(api_key=AI_KEY, base_url=AI_BASE)
                         response = client.chat.completions.create(
                             model="deepseek-chat",
                             messages=[
-                                {"role": "system", "content": "你是一个资深加密货币分析师。根据提供的时间序列数据（最近15个点），分析价格动能、支撑压力位。输出格式要求：1. 趋势判断（看涨/看跌/震荡）；2. 关键点位；3. 操作建议。字数控制在150字以内。"},
+                                {"role": "system", "content": "你是一个资深加密货币分析师。根据提供的时间序列数据，分析价格动能。输出格式：1.趋势判断；2.关键点位；3.操作建议。"},
                                 {"role": "user", "content": f"数据如下：\n{data_str}"}
                             ]
                         )
-                        
-                        # 3. 展示
-                        report = response.choices[0].message.content
-                        st.success("研报生成完毕！")
-                        st.info(report)
-                        
+                        st.success("分析完成！")
+                        st.info(response.choices[0].message.content)
                     except Exception as ai_e:
                         st.error(f"AI 调用失败: {ai_e}")
 
-            # --- 原始数据 ---
             with st.expander("查看源数据"):
                 st.dataframe(df_coin.sort_index(ascending=False))
         else:
