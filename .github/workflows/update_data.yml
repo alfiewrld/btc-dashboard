@@ -1,17 +1,13 @@
-name: 自动抓取币价
+name: 自动抓取币价(数据库版)
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 * * * *' # 每小时运行一次
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
-    # 这一步是为了防止权限问题
-    permissions:
-      contents: write
 
     steps:
     - name: Checkout code
@@ -24,20 +20,11 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install requests pandas openpyxl
+        pip install -r requirements.txt
 
-    - name: Run scraper
-      run: python cloud_bot.py
-
-    - name: Commit and push changes
-      run: |
-        git config --global user.name "GitHub Action Bot"
-        git config --global user.email "actions@github.com"
-        git add data.xlsx
-        # --- ⬇️ 关键修改在这里 ⬇️ ---
-        # 1. 先提交到本地
-        git commit -m "Auto-update crypto data" || echo "No changes to commit"
-        # 2. 先把服务器上最新的拉下来合并 (rebase模式更干净)
-        git pull --rebase origin main
-        # 3. 再推上去
-        git push
+    - name: Run cloud scraper
+      # ⚠️ 关键：把 Secrets 传给 Python 脚本
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      run: python cloud_bot_v2.py
