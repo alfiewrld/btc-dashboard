@@ -40,7 +40,7 @@ def auto_trade_logic(symbol, price):
     # --- 模拟买入逻辑 (示例：只要有钱就买 10%) ---
     # 实际策略请根据你的需求修改，这里为了演示效果，设为：
     # "如果价格 < 92000 且我有钱，就用 10% 的钱买入"
-    if price < 88000 and usdt > 10:
+    if price < 95000 and usdt > 10:
         spend_usdt = usdt * 0.1  # 每次只梭哈 10%
         buy_amount = spend_usdt / price
         
